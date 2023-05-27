@@ -122,7 +122,7 @@ router.post("/signup", async (req, res) => {
 
     const options = {
       expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-      path: "/",
+      httpOnly: true,
     };
 
     res.status(200).cookie("token", token, options).json({ success: true });
@@ -244,7 +244,7 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
 
       const options = {
         expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-        path: "/",
+        httpOnly: true,
       };
 
       return res.status(200).cookie("token", token, options).json({
@@ -455,7 +455,7 @@ router.post("/login", async (req, res) => {
       });
       const options = {
         expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-        path: "/",
+        httpOnly: true,
       };
       return res
         .status(200)
