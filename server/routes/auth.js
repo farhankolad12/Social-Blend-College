@@ -450,9 +450,13 @@ router.post("/login", async (req, res) => {
               uid: isEmailExists._id,
             })
           : await Brand.findOne({ uid: isEmailExists._id });
-      const token = jwt.sign({ user: userData }, process.env.JWT_SECRECT_KEY, {
-        expiresIn: "1d",
-      });
+      const token = jwt.sign(
+        { user: userData !== null ? userData : isEmailExists },
+        process.env.JWT_SECRECT_KEY,
+        {
+          expiresIn: "1d",
+        }
+      );
       const options = {
         expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
         httpOnly: true,
