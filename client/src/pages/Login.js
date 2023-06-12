@@ -6,8 +6,6 @@ import { usePostReq } from "../hooks/usePostReq";
 import Login_onetap from "../components/google-auth/google-ontap";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import ReCAPTCHA from "react-google-recaptcha";
-import axios from "axios";
-
 
 export default function Login() {
   const { loading, error, execute, setError } = usePostReq("auth/login");
@@ -15,35 +13,22 @@ export default function Login() {
   const emailRef = useRef();
   const passRef = useRef();
   const navigate = useNavigate();
-  const [token, setToken] = useState("");
-  const recaptchaRef = useRef();
-  const SITE_KEY = process.env.RECAPTCHA_CLIENT_KEY
-  const SECRET_KEY = process.env.RECAPTCHA_CLIENT_SECRET_KEY
+  const SITE_KEY = "6Ld24oAmAAAAAA2pHR2xZvxKCmFluH4N-S6djIR6";
+
+  const recaptcha_ref = useRef();
+
 
   async function handleSubmit(e) {
     e.preventDefault();
     const email = emailRef.current.value;
     const pass = passRef.current.value;
+    const token = await recaptcha_ref.current.executeAsync();
 
-    const token = await recaptchaRef.current.executeAsync();
-    setToken(token);
-    
-    try {
-      
-      console.log(token)
-      const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
-        params: {
-          secret: SECRET_KEY,
-          response: token,
-        },
-      });
-
-      console.log(response.data);
-
-      
-    } catch (err) {
-      console.log(err);
-      setError("CAPTCHA NOT WORKING");
+    try{
+      await execute({email,password:pass,token:token});
+      await authStateChange();
+    }catch(err){
+      setError(err.response.data.message);
       return setTimeout(() => setError(""), 2000);
     }
   }
@@ -59,31 +44,6 @@ export default function Login() {
         : navigate(`/complete-profile/${currentUser.currentLevel}`));
   }, [currentUser, navigate]);
 
-  useEffect(() => {
-    const loadScriptByURL = (id, url, callback) => {
-      const isScriptExist = document.getElementById(id);
-
-      if (!isScriptExist) {
-        var script = document.createElement("script");
-        script.type = "text/javascript";
-        script.src = url;
-        script.id = id;
-        script.onload = function () {
-          if (callback) callback();
-        };
-        document.body.appendChild(script);
-      }
-
-      if (isScriptExist && callback) callback();
-    }
-
-    // load the script by passing the URL
-    loadScriptByURL("recaptcha-key", `https://www.google.com/recaptcha/api.js?render=${SITE_KEY}`, function () {
-      console.log("Script loaded!");
-    });
-  }, []);
-
-  
 
 
   return (
@@ -131,12 +91,13 @@ export default function Login() {
             placeholder="Password"
             ref={passRef}
           />
+          
           <ReCAPTCHA
-            sitekey="6Ld24oAmAAAAAA2pHR2xZvxKCmFluH4N-S6djIR6"
+            ref = {recaptcha_ref}
             size="invisible"
-            badge="bottomright"
-            ref={recaptchaRef}
+            sitekey= {SITE_KEY}
           />
+          
           <button
             disabled={loading}
             type="submit"

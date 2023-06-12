@@ -597,29 +597,64 @@ const querystring = require('querystring');
 
 // Login
 router.post("/login", async (req, res) => {
-  const { token } = req.body;
-  
+  const { email,password,token } = req.body;
+  const SECRET_KEY = process.env.RECAPTCHA_CLIENT_SECRET_KEY
   try{    
-    const response = await axios.post(
-      "https://www.google.com/recaptcha/api/siteverify",
-      null,
-      {
-        params: {
-          secret: "6Ld24oAmAAAAAAKDcqcL7B6OPEx5VKWyquJU6urG",
-          response: token,
-        },
+    var VERIFY_URL = `https://www.google.com/recaptcha/api/siteverify?secret=${SECRET_KEY}&response=${token}`;
+    const response = await (await fetch(VERIFY_URL, { method: 'POST' })).json()
+
+    if (response.success && response.score > 0.5){
+
+      const isEmailExists = await Users.findOne({ email });
+      if (
+        isEmailExists && (await bcrypt.compare(password,isEmailExists.password))
+      ){
+          isEmailExists.type == "Influencer" ? await Influencers.updateOne(
+            {
+              uid: isEmailExists._id,
+            },
+            { $set: { lastOnline: new Date().getTime() } }
+          ) : await Brand.updateOne(
+            { uid: isEmailExists._id},
+            {$set: { lastOnline: new Date().getTime()}}
+          );
+
+          const userData = isEmailExists.type == "Influencer" ? await Influencers.findOne({
+            uid: isEmailExists._id,
+          })
+          : await Brand.updateOne({ uid: isEmailExists._id});
+
+          const token = jwt.sign({ user: userData},process.env.JWT_SECRECT_KEY,{
+            expiresIn: "1d",
+          });
+          const options = {
+            expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+            path: "/"
+          };
+          return res
+            .status(200)
+            .cookie("token",token,options)
+            .json({ success: true});
       }
-    );
+      return res.status(401).json({
+        message: "Email/Password is Invalid!"
+      })
 
-    const { success, score } = response.data;
 
-    if (success && score >= 0.5) {
+    }else{
+      return res.status(401).send({message:"Bot detected !"})
+
+    }
+    
+    /* .then(res => res.json())
+      .then(json => res.send(json))
+    */
+    /* if (success && score >= 0.5) {
       res.status(401).json({ message:"captcha is working" });
     } else {
       res.status(401).json({ message:"captcha is working nut score is bad" });
 
-    }
-
+    } */
   }
   catch(err){
     res.status(500).json({
