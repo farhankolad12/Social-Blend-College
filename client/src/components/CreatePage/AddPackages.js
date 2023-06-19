@@ -20,6 +20,7 @@ export default function AddPackages() {
   );
 
   useEffect(() => {
+    
     navigate(`/create-page/${currentLevel.toString()}`);
   }, [currentLevel, navigate]);
 

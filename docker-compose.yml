@@ -27,6 +27,19 @@ services:
     environment:
       - MONGO_DB_HOST_NAME=mongodb://mongodb:27017/socialblend
 
+    
+  recaptcha_server:
+    container_name: recaptchaServer
+    image: index.io/prashrex/recaptcha_server
+    build: 
+      context: ./recaptchaServer
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    networks:
+      - node-webapp-network
+      
+
   mongodb:
     container_name: mongodb
     image: mongo:6.0

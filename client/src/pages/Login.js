@@ -8,7 +8,6 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import ReCAPTCHA from "react-google-recaptcha";
 import axios from "axios";
 
-
 export default function Login() {
   const { loading, error, execute, setError } = usePostReq("auth/login");
   const { authStateChange, currentUser } = useAuth();
@@ -28,7 +27,18 @@ export default function Login() {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin":"*"
           }
-        }).then(async function(response){
+        })
+        // comment out this to try the site-verify
+        /* await axios.post("https://www.google.com/recaptcha/api/siteverify",{
+          secret: "6Ld24oAmAAAAAAKDcqcL7B6OPEx5VKWyquJU6urG",
+          response: token},
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+        ) */
+        .then(async function(response){
           const success = response.data.success;
           const score = response.data.score;
           await execute({email,password:pass,success,score});
@@ -43,7 +53,7 @@ export default function Login() {
     if (currentUser && currentUser.TwoFA){
       navigate("/2fa");
     }else{
-      currentUser &&
+      currentUser && !currentUser.TwoFA &&
       ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
       (currentUser.type === "Brand" && currentUser.currentLevel === 6)
         ? navigate(`/${currentUser.username}`)
@@ -51,8 +61,7 @@ export default function Login() {
         ? navigate(`/create-page/${currentUser.currentLevel}`)
         : navigate(`/complete-profile/${currentUser.currentLevel}`))
     }
-    
-  }, [currentUser, navigate]);
+  },[currentUser, navigate]);
 
   return (
     <>

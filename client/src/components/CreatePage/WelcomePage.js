@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import img from "../../assets/imgs/check.png";
 import { useAuth } from "../../context/AuthContext";

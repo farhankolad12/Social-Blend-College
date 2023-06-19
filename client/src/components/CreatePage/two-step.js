@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef,useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useSignUp } from "../../context/SignUpContext";
@@ -7,6 +7,7 @@ import ErrorCon from "../ErrorCon";
 import Loading from "../Loading";
 
 export default function TwoStepVerfication() {
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false);
   const { authStateChange, currentUser } = useAuth();
   const { email, currentLevel, setCurrentLevel } = useSignUp();
   const { loading, error, execute, setError } = usePostReq("auth/twoFA");
@@ -32,7 +33,6 @@ export default function TwoStepVerfication() {
     }
     setCurrentLevel((prev) => prev + 1);
   }
-
   async function handleResend() {
     try {
       await _execute();
@@ -41,54 +41,72 @@ export default function TwoStepVerfication() {
       return setTimeout(() => _setError(""), 2000);
     }
   }
-  
   useEffect(() => {
-    if (currentUser && currentUser.TwoFA){
-      navigate("/2fa");
-    }
-    else{
-      ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
-      (currentUser.type === "Brand" && currentUser.currentLevel === 6)
-      ? navigate(`/${currentUser.username}`)
-      : currentUser.type === "Influencer"
-      ? navigate(`/create-page/${currentUser.currentLevel}`)
-      : navigate(`/complete-profile/${currentUser.currentLevel}`))
-    }
+      if (currentUser && currentUser.TwoFA && !isFormSubmitted){
+        navigate("/2fa");
+      }
+      else{
+        ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
+        (currentUser.type === "Brand" && currentUser.currentLevel === 6)
+        ? navigate(`/${currentUser.username}`)
+        : currentUser.type === "Influencer"
+        ? navigate(`/create-page/${currentUser.currentLevel}`)
+        : navigate(`/complete-profile/${currentUser.currentLevel}`))
+      }
+    
   },[currentUser,navigate])
-
 
   return (
     <>
+    <div
+        className="mt-3 w-100 d-flex flex-column gap-4 align-items-center justify-content-center container"
+        style={{
+          height: "20vh",
+          
+        }}
+      ></div>
+    <div className="d-flex flex-column align-items-center gap-3 justify-content-center "
+      style={{
+  
+      }}
+    >
       <ErrorCon error={error} />
-      <form onSubmit={handleSubmit} className="width-60-form">
-        <h3 className="fw-bold">Verify your email</h3>
-        <p>
-          We sent an email to {email}. Check your inbox and enter the 6-digit
-          code to verify your email.
-        </p>
-        <input
-          ref={codeRef}
-          required
-          type="text"
-          className="form-control"
-          placeholder="6-Digit Code"
-          pattern="^[0-9]{6}$"
-        />
-        <button
-          disabled={loading}
-          className="btn btn-dark w-100 py-2 my-4"
-          type="submit"
-        >
-          {loading ? <Loading /> : "Continue"}
-        </button>
-        <button
-          type="button"
-          data-bs-toggle="modal"
-          data-bs-target="#exampleModal"
-          className="btn text-dark w-100 text-center"
-        >
-          I didn't receive an email
-        </button>
+      <form onSubmit={handleSubmit} 
+        style ={{
+          width: "50vh"
+          
+        }}
+      >
+        
+          <h3 className="fw-bold">Bot Detected!</h3>
+          <p>
+            We sent an email to {email}. Check your inbox and enter the 6-digit
+            code to verify your email.
+          </p>
+          <input
+            ref={codeRef}
+            required
+            type="text"
+            className="form-control"
+            placeholder="6-Digit Code"
+            pattern="^[0-9]{6}$"
+          />
+          <button
+            disabled={loading}
+            className="btn btn-dark w-100 py-2 my-4"
+            type="submit"
+          >
+            {loading ? <Loading /> : "Continue"}
+          </button>
+          <button
+            type="button"
+            data-bs-toggle="modal"
+            data-bs-target="#exampleModal"
+            className="btn text-dark w-100 text-center"
+          >
+            I didn't receive an email
+          </button>
+        
       </form>
       <ErrorCon error={_error} />
       <div
@@ -141,6 +159,7 @@ export default function TwoStepVerfication() {
           </div>
         </div>
       </div>
+    </div>
     </>
   );
 }
