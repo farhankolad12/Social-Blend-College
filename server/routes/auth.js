@@ -589,9 +589,9 @@ router.post("/twoFA",checkAuth,async (req,res) => {
   const { code } = req.body;
   try{
     const emailExists = await Users.findOne({ email })
-    const ten_min = 10 * 60 * 1000;
-    if ( emailExists != null && code == emailExists.otp ){
-      emailExists.type == "Influencer"
+    const ten_min = 30 * 60 * 1000;
+    if ( emailExists != null && code == emailExists.otp ){ 
+        emailExists.type == "Influencer"
         ? await Influencers.updateOne(
           { uid: emailExists._id },
           {
@@ -626,32 +626,7 @@ router.post("/twoFA",checkAuth,async (req,res) => {
         return res.status(200).cookie("token",token,options).json({
           success:true
         })
-      /* if (new Date().getTime() - emailExists.lastOnline > ten_min){
-
-        
-      } */
-      /* else{
-        // after 10 minute TwoFA = FALSE --> TOKEN_DESTROYED --> REDIRECT TO LOGIN PAGE/HOME PAGE
-        emailExists.type == "Influencer"
-        ? await Influencers.updateOne(
-          { uid: emailExists._id },
-          {
-            $set:{
-              TwoFA: false,
-            }
-          }
-        )
-        : await Brand.updateOne(
-          { uid: emailExists._id},
-          {
-            $set:{
-              TwoFA: false
-            }
-          }
-        )
-        return res.status(401).clearCookie("token").redirect("/login");
-      } */
-    }
+      }
     else{
       return res.status(401).json({
         success: false,
