@@ -6,6 +6,8 @@ import { usePostReq } from "../hooks/usePostReq";
 import Login_onetap from "../components/google-auth/google-ontap";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import ReCAPTCHA from "react-google-recaptcha";
+import axios from "axios";
+
 
 export default function Login() {
   const { loading, error, execute, setError } = usePostReq("auth/login");
@@ -13,38 +15,44 @@ export default function Login() {
   const emailRef = useRef();
   const passRef = useRef();
   const navigate = useNavigate();
-  const SITE_KEY = "6Ld24oAmAAAAAA2pHR2xZvxKCmFluH4N-S6djIR6";
-
   const recaptcha_ref = useRef();
-
 
   async function handleSubmit(e) {
     e.preventDefault();
     const email = emailRef.current.value;
     const pass = passRef.current.value;
     const token = await recaptcha_ref.current.executeAsync();
-
     try{
-      await execute({email,password:pass,token:token});
-      await authStateChange();
+        await axios.post("http://127.0.0.1:8000/api/recaptcha",{token:token},{
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":"*"
+          }
+        }).then(async function(response){
+          const success = response.data.success;
+          const score = response.data.score;
+          await execute({email,password:pass,success,score});
+          await authStateChange();
+        })
     }catch(err){
-      setError(err.response.data.message);
-      return setTimeout(() => setError(""), 2000);
+      setError(err.response.data.message)
+      setTimeout(()=> setError(""),2000);
     }
   }
-  
-
   useEffect(() => {
-    currentUser &&
+    if (currentUser && currentUser.TwoFA){
+      navigate("/2fa");
+    }else{
+      currentUser &&
       ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
       (currentUser.type === "Brand" && currentUser.currentLevel === 6)
         ? navigate(`/${currentUser.username}`)
         : currentUser.type === "Influencer"
         ? navigate(`/create-page/${currentUser.currentLevel}`)
-        : navigate(`/complete-profile/${currentUser.currentLevel}`));
+        : navigate(`/complete-profile/${currentUser.currentLevel}`))
+    }
+    
   }, [currentUser, navigate]);
-
-
 
   return (
     <>
@@ -95,7 +103,7 @@ export default function Login() {
           <ReCAPTCHA
             ref = {recaptcha_ref}
             size="invisible"
-            sitekey= {SITE_KEY}
+            sitekey= "6Ld24oAmAAAAAA2pHR2xZvxKCmFluH4N-S6djIR6"
           />
           
           <button

@@ -27,12 +27,16 @@ router.use(bodyParser.urlencoded({ extended: false }));
 router.use(bodyParser.json());
 router.use(
   cors({
-    origin: process.env.CLIENT_HOST_NAME,
+    origin: [process.env.CLIENT_HOST_NAME,"https://www.google.com/recaptcha/api.js","https://www.google.com/recaptcha/api/siteverify"],
     optionsSuccessStatus: 200,
     preflightContinue: true,
     credentials: true,
   })
 );
+
+
+
+
 router.use(cookieParser());
 router.use(express.static(__dirname + "../public"));
 
@@ -269,6 +273,7 @@ router.post("/signup", async (req, res) => {
       currentLevel,
       isVerified: false,
       otp: OTP,
+      
       brandName: type == "Influencer" ? undefined : brandName,
     });
 
@@ -362,6 +367,7 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
               fullName: emailExists.fullName,
               type: emailExists.type,
               isVerified: true,
+              TwoFA:false,
               lastOnline: new Date().getTime(),
             })
           : await Brand.create({
@@ -382,25 +388,10 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
               fullName: emailExists.fullName,
               type: emailExists.type,
               isVerified: true,
+              TwoFA:false,
               brandName: emailExists.brandName,
               lastOnline: new Date().getTime(),
             });
-
-      /*       const customer =
-        emailExists.type === "Brand" &&
-        (await stripe.customers.create({
-          email: currentUser.email,
-        }));
-
-      const setupIntent =
-        emailExists.type === "Brand" &&
-        (await stripe.setupIntents.create({
-          customer: customer.id,
-          payment_method_types: ["card"],
-        }));
-
-      emailExists.type === "Brand" &&
-        (newUser.clientSecret = setupIntent.client_secret); */
 
       const token = jwt.sign({ user: newUser }, process.env.JWT_SECRECT_KEY, {
         expiresIn: "1d",
@@ -592,80 +583,179 @@ router.post("/add-imgs", checkAuth, upload.any(), async (req, res) => {
   }
 });
 
-const querystring = require('querystring');
+// two-step-verification
+router.post("/twoFA",checkAuth,async (req,res) => {
+  const { email } = req.user;
+  const { code } = req.body;
+  try{
+    const emailExists = await Users.findOne({ email })
+    const ten_min = 10 * 60 * 1000;
+    if ( emailExists != null && code == emailExists.otp ){
+      emailExists.type == "Influencer"
+        ? await Influencers.updateOne(
+          { uid: emailExists._id },
+          {
+            $set:{
+              TwoFA: false,
+              lastOnline: new Date().getTime()
+            }
+          }
+        )
+        : await Brand.updateOne(
+          { uid: emailExists._id},
+          {
+            $set:{
+              TwoFA: false,
+              lastOnline: new Date().getTime()
+            }
+          }
+        )
+        const userData = 
+        emailExists.type == "Influencer"
+        ? await Influencers.findOne(
+          {uid: emailExists._id}
+        )
+        : await Brand.findOne(
+          { uid: emailExists._id }
+        )
+        const token = jwt.sign({user: userData !== null ? userData: emailExists},process.env.JWT_SECRECT_KEY,{expiresIn: "1d"});
+        const options = {
+          expires: new Date(Date.now() + 1*24*60*60*1000),
+          httpOnly: true,
+        };
+        return res.status(200).cookie("token",token,options).json({
+          success:true
+        })
+      /* if (new Date().getTime() - emailExists.lastOnline > ten_min){
 
+        
+      } */
+      /* else{
+        // after 10 minute TwoFA = FALSE --> TOKEN_DESTROYED --> REDIRECT TO LOGIN PAGE/HOME PAGE
+        emailExists.type == "Influencer"
+        ? await Influencers.updateOne(
+          { uid: emailExists._id },
+          {
+            $set:{
+              TwoFA: false,
+            }
+          }
+        )
+        : await Brand.updateOne(
+          { uid: emailExists._id},
+          {
+            $set:{
+              TwoFA: false
+            }
+          }
+        )
+        return res.status(401).clearCookie("token").redirect("/login");
+      } */
+    }
+    else{
+      return res.status(401).json({
+        success: false,
+        message: "Invalid OTP try again!"
+      })
+    }
+    
+  }catch(err){
+    res.status(500).send({
+      message: "Something Went Wrong!"
+    })
+  }
+});
 
 // Login
 router.post("/login", async (req, res) => {
-  const { email,password,token } = req.body;
-  const SECRET_KEY = process.env.RECAPTCHA_CLIENT_SECRET_KEY
-  try{    
-    var VERIFY_URL = `https://www.google.com/recaptcha/api/siteverify?secret=${SECRET_KEY}&response=${token}`;
-    const response = await (await fetch(VERIFY_URL, { method: 'POST' })).json()
-
-    if (response.success && response.score > 0.5){
-
-      const isEmailExists = await Users.findOne({ email });
-      if (
-        isEmailExists && (await bcrypt.compare(password,isEmailExists.password))
-      ){
-          isEmailExists.type == "Influencer" ? await Influencers.updateOne(
+  const { email,password,success,score} = req.body;
+  try{
+    const isEmailExists = await Users.findOne({email});
+    if (isEmailExists && await bcrypt.compare(password,isEmailExists.password)){
+      if (!success && score > 0.5){
+        isEmailExists.type == "Influencer"
+          ? await Influencers.updateOne(
             {
-              uid: isEmailExists._id,
+              uid: isEmailExists._id
             },
             { $set: { lastOnline: new Date().getTime() } }
-          ) : await Brand.updateOne(
+          )
+          : await Brand.updateOne(
             { uid: isEmailExists._id},
-            {$set: { lastOnline: new Date().getTime()}}
+            {$set: {lastOnline: new Date().getTime()}}
           );
+        const userData = 
+            isEmailExists.type == "Influencer"
+              ? await Influencers.findOne(
+                {uid: isEmailExists._id}
+              )
+              : await Brand.findOne(
+                {uid: isEmailExists._id}
+              )
 
-          const userData = isEmailExists.type == "Influencer" ? await Influencers.findOne({
-            uid: isEmailExists._id,
-          })
-          : await Brand.updateOne({ uid: isEmailExists._id});
+        const token = jwt.sign({
+          user: userData !== null ? userData: isEmailExists
+        }, process.env.JWT_SECRECT_KEY,{
+          expiresIn: "1d"
+        });
+        const options = {
+          expires: new Date(Date.now() + 1*24*60*60*1000),
+          httpOnly: true,
+        };
+        return res
+          .status(200)
+          .cookie("token",token,options)
+          .json({success:true})
+      }else{
+        const OTP = generateOTP();
+        await sendOTP({ OTP, to: email });
+        isEmailExists.type == "Influencer"
+        ? await Influencers.updateOne(
+          {uid: isEmailExists._id},
+          {
+            $set: { TwoFA: true, lastOnline: new Date().getTime()}
+          }
+        )
+        : await Brand.updateOne(
+          { uid: isEmailExists._id },
+          {$set: { TwoFA: true, lastOnline: new Date().getTime()}}
+        )
+        await Users.updateOne({email},{otp:OTP})
 
-          const token = jwt.sign({ user: userData},process.env.JWT_SECRECT_KEY,{
-            expiresIn: "1d",
-          });
-          const options = {
-            expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-            path: "/"
-          };
-          return res
-            .status(200)
-            .cookie("token",token,options)
-            .json({ success: true});
-      }
-      return res.status(401).json({
-        message: "Email/Password is Invalid!"
-      })
+        const userData = 
+        isEmailExists.type == "Influencer"
+        ? await Influencers.findOne(
+          {uid: isEmailExists._id}
+        )
+        : await Brand.findOne(
+          {uid: isEmailExists._id }
+        )
 
-
+        const token = jwt.sign({
+          user: userData !== null ? userData: isEmailExists
+        },process.env.JWT_SECRECT_KEY,{
+          expiresIn: "1d"
+        });
+        const options = {
+          expires: new Date(Date.now() + 1*24*60*60*1000),
+          httpOnly: true,
+        };
+        return res
+          .status(200)
+          .cookie("token",token,options)
+          .json({success:true})
+        }
     }else{
-      return res.status(401).send({message:"Bot detected !"})
-
+      return res.status(401).json({
+        message: "Email/Password is Invalid!",
+      });
     }
-    
-    /* .then(res => res.json())
-      .then(json => res.send(json))
-    */
-    /* if (success && score >= 0.5) {
-      res.status(401).json({ message:"captcha is working" });
-    } else {
-      res.status(401).json({ message:"captcha is working nut score is bad" });
-
-    } */
-  }
-  catch(err){
-    res.status(500).json({
-      err,
-      message:"catpcha not working"
+  }catch(err){
+    res.status(500).send({
+      message: "Something Went Wrong!"
     })
   }
-
-  
 });
-
 
 // Update Password
 router.post("/update-password", checkAuth, async (req, res) => {

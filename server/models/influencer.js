@@ -96,6 +96,10 @@ const influencerSchema = new mongoose.Schema({
   currentLevel: {
     type: Number,
   },
+  code: {
+    type: Number,
+    default: null,
+  },
   username: {
     type: String,
   },
@@ -109,6 +113,10 @@ const influencerSchema = new mongoose.Schema({
     type: String,
   },
   isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  TwoFA: {
     type: Boolean,
     default: false,
   },

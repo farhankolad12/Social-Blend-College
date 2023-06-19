@@ -28,6 +28,7 @@ import Earnings from "./pages/Earnings";
 import Orders from "./pages/Orders";
 import InfluencerRoutes from "./components/PrivateRoutes/InfluencerRoutes";
 import BrandRoutes from "./components/PrivateRoutes/BrandRoutes";
+import TwoStepVerfication from "./components/CreatePage/two-step";
 
 function App() {
   const resolvedPath = useResolvedPath("/create-page");
@@ -110,6 +111,12 @@ function App() {
             </SignUpContext>
           }
         />
+
+        <Route path="/2fa/" element={
+          <SignUpContext>
+            <TwoStepVerfication/>
+          </SignUpContext>        
+        }/>
         <Route path="/forget-password" element={<ForgetPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/:username" element={<UserPage />} />
