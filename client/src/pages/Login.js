@@ -15,6 +15,7 @@ export default function Login() {
   const passRef = useRef();
   const navigate = useNavigate();
   const recaptcha_ref = useRef();
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -51,8 +52,10 @@ export default function Login() {
   }
   useEffect(() => {
     if (currentUser && currentUser.TwoFA){
+      setIsFormSubmitted(false)
       navigate("/2fa");
     }else{
+      setIsFormSubmitted(true)
       currentUser && !currentUser.TwoFA &&
       ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
       (currentUser.type === "Brand" && currentUser.currentLevel === 6)
@@ -60,8 +63,13 @@ export default function Login() {
         : currentUser.type === "Influencer"
         ? navigate(`/create-page/${currentUser.currentLevel}`)
         : navigate(`/complete-profile/${currentUser.currentLevel}`))
+
+      window.history.pushState(null, document.title, window.location.href);
+      window.addEventListener("popstate", function () {
+        window.history.pushState(null, document.title, window.location.href);
+      });
     }
-  },[currentUser, navigate]);
+  },[currentUser,isFormSubmitted, navigate]);
 
   return (
     <>

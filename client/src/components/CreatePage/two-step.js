@@ -41,28 +41,35 @@ export default function TwoStepVerfication() {
       return setTimeout(() => _setError(""), 2000);
     }
   }
+
   useEffect(() => {
-      if (currentUser && currentUser.TwoFA && !isFormSubmitted){
-        navigate("/2fa");
-      }
-      else{
-        ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
-        (currentUser.type === "Brand" && currentUser.currentLevel === 6)
-        ? navigate(`/${currentUser.username}`)
-        : currentUser.type === "Influencer"
-        ? navigate(`/create-page/${currentUser.currentLevel}`)
-        : navigate(`/complete-profile/${currentUser.currentLevel}`))
-      }
-    
-  },[currentUser,navigate])
+    if (currentUser && currentUser.TwoFA && !isFormSubmitted){
+      setIsFormSubmitted(false)
+      setError("Bot detected!")
+      setTimeout(() => setError(""),3000)
+      navigate("/2fa");
+    }
+    else{
+      ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
+      (currentUser.type === "Brand" && currentUser.currentLevel === 6)
+      ? navigate(`/${currentUser.username}`)
+      : currentUser.type === "Influencer"
+      ? navigate(`/create-page/${currentUser.currentLevel}`)
+      : navigate(`/complete-profile/${currentUser.currentLevel}`))
+
+      window.history.pushState(null, document.title, window.location.href);
+      window.addEventListener("popstate", function () {
+        window.history.pushState(null, document.title, window.location.href);
+      });
+    }
+  },[currentUser,isFormSubmitted,navigate])
 
   return (
     <>
     <div
         className="mt-3 w-100 d-flex flex-column gap-4 align-items-center justify-content-center container"
         style={{
-          height: "20vh",
-          
+          height: "20vh",          
         }}
       ></div>
     <div className="d-flex flex-column align-items-center gap-3 justify-content-center "

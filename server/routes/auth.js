@@ -590,6 +590,29 @@ router.post("/twoFA",checkAuth,async (req,res) => {
   try{
     const emailExists = await Users.findOne({ email })
     const ten_min = 30 * 60 * 1000;
+    if (new Date().getTime() - emailExists.lastOnline > ten_min){
+      emailExists.type == "Influencer"
+      ? await Influencers.updateOne(
+        { uid: emailExists._id},
+        {
+          $set:{
+            TwoFA: false,
+            lastOnline: new Date().getTime()
+          }
+        }
+      )
+      : await Brand.updateOne(
+        { uid: emailExists._id},
+        {
+          $set:{
+            TwoFA: false,
+            lastOnline: new Date().getTime()
+          }
+        }
+      )
+      return res.status(200).clearCookie("token").json({ success: true });
+    }
+
     if ( emailExists != null && code == emailExists.otp ){ 
         emailExists.type == "Influencer"
         ? await Influencers.updateOne(
@@ -633,6 +656,9 @@ router.post("/twoFA",checkAuth,async (req,res) => {
         message: "Invalid OTP try again!"
       })
     }
+
+    
+
   }catch(err){
     res.status(500).send({
       message: "Something Went Wrong!"
@@ -646,7 +672,7 @@ router.post("/login", async (req, res) => {
   try{
     const isEmailExists = await Users.findOne({email});
     if (isEmailExists && await bcrypt.compare(password,isEmailExists.password)){
-      if (success && score > 0.5){
+      if (!success && score > 0.5){
         isEmailExists.type == "Influencer"
           ? await Influencers.updateOne(
             {
