@@ -6,7 +6,6 @@ import { usePostReq } from "../hooks/usePostReq";
 import Login_onetap from "../components/google-auth/google-ontap";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import ReCAPTCHA from "react-google-recaptcha";
-import axios from "axios";
 
 export default function Login() {
   const { loading, error, execute, setError } = usePostReq("auth/login");
@@ -22,29 +21,10 @@ export default function Login() {
     const email = emailRef.current.value;
     const pass = passRef.current.value;
     const token = await recaptcha_ref.current.executeAsync();
+
     try{
-        await axios.post("http://127.0.0.1:8000/api/recaptcha",{token:token},{
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":"*"
-          }
-        })
-        // comment out this to try the site-verify
-        /* await axios.post("https://www.google.com/recaptcha/api/siteverify",{
-          secret: "6Ld24oAmAAAAAAKDcqcL7B6OPEx5VKWyquJU6urG",
-          response: token},
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-        ) */
-        .then(async function(response){
-          const success = response.data.success;
-          const score = response.data.score;
-          await execute({email,password:pass,success,score});
-          await authStateChange();
-        })
+      const response = await execute({ email,password:pass,token })
+      await authStateChange();
     }catch(err){
       setError(err.response.data.message)
       setTimeout(()=> setError(""),2000);

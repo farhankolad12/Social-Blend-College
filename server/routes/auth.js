@@ -27,7 +27,7 @@ router.use(bodyParser.urlencoded({ extended: false }));
 router.use(bodyParser.json());
 router.use(
   cors({
-    origin: [process.env.CLIENT_HOST_NAME,"https://www.google.com/recaptcha/api.js","https://www.google.com/recaptcha/api/siteverify"],
+    origin: process.env.CLIENT_HOST_NAME,
     optionsSuccessStatus: 200,
     preflightContinue: true,
     credentials: true,
@@ -666,96 +666,98 @@ router.post("/twoFA",checkAuth,async (req,res) => {
   }
 });
 
-// Login
-router.post("/login", async (req, res) => {
-  const { email,password,success,score} = req.body;
+
+//LOGIN
+const axios = require('axios');
+
+router.post("/login",async (req,res) => {
+  const { email,password,token } = req.body;
+  const SECRET_KEY = process.env.RECAPTCHA_CLIENT_SECRET_KEY;
   try{
-    const isEmailExists = await Users.findOne({email});
-    if (isEmailExists && await bcrypt.compare(password,isEmailExists.password)){
-      if (!success && score > 0.5){
-        isEmailExists.type == "Influencer"
+    const isEmailExists = await Users.findOne({ email });
+    await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${SECRET_KEY}&response=${token}`,
+      {
+        headers:{
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" 
+        }
+      }
+    )
+    .then(async function(response){
+      const success = response.data.success;
+      const score = response.data.score;
+      if (isEmailExists && await bcrypt.compare(password,isEmailExists.password)){
+        if (success && score > 0.5){
+          isEmailExists.type == "Influencer"
           ? await Influencers.updateOne(
             {
               uid: isEmailExists._id
             },
-            { $set: { lastOnline: new Date().getTime() } }
+            {
+              $set: {lastOnline: new Date().getTime()}
+            }
           )
           : await Brand.updateOne(
-            { uid: isEmailExists._id},
-            {$set: {lastOnline: new Date().getTime()}}
-          );
+            {
+              uid: isEmailExists._id
+            },
+            {
+              $set: {lastOnline: new Date().getTime()}
+            }
+          )
+        }
+        else{
+          const OTP = generateOTP();
+          await sendOTP({OTP,to:email});
+
+          isEmailExists.type == "Influencer"
+          ? await Influencers.updateOne(
+            {uid: isEmailExists._id},
+            {$set: {TwoFA: true,lastOnline: new Date().getTime()}}
+          )
+          : await Brand.updateOne(
+            {uid: isEmailExists._id},
+            {$set: {TwoFA:true,lastOnline: new Date().getTime()}} 
+          )
+          await Users.updateOne({email},{otp:OTP})
+        }
         const userData = 
-            isEmailExists.type == "Influencer"
-              ? await Influencers.findOne(
-                {uid: isEmailExists._id}
-              )
-              : await Brand.findOne(
-                {uid: isEmailExists._id}
-              )
+          isEmailExists.type == "Influencer"
+            ? await Influencers.findOne(
+              { uid: isEmailExists._id}
+            )
+            : await Brand.findOne(
+              { uid: isEmailExists._id}
+            ) 
 
         const token = jwt.sign({
           user: userData !== null ? userData: isEmailExists
         }, process.env.JWT_SECRECT_KEY,{
           expiresIn: "1d"
         });
+
         const options = {
           expires: new Date(Date.now() + 1*24*60*60*1000),
-          httpOnly: true,
-        };
-        return res
-          .status(200)
-          .cookie("token",token,options)
-          .json({success:true})
-      }else{
-        const OTP = generateOTP();
-        await sendOTP({ OTP, to: email });
-        isEmailExists.type == "Influencer"
-        ? await Influencers.updateOne(
-          {uid: isEmailExists._id},
-          {
-            $set: { TwoFA: true, lastOnline: new Date().getTime()}
-          }
-        )
-        : await Brand.updateOne(
-          { uid: isEmailExists._id },
-          {$set: { TwoFA: true, lastOnline: new Date().getTime()}}
-        )
-        await Users.updateOne({email},{otp:OTP})
-
-        const userData = 
-        isEmailExists.type == "Influencer"
-        ? await Influencers.findOne(
-          {uid: isEmailExists._id}
-        )
-        : await Brand.findOne(
-          {uid: isEmailExists._id }
-        )
-
-        const token = jwt.sign({
-          user: userData !== null ? userData: isEmailExists
-        },process.env.JWT_SECRECT_KEY,{
-          expiresIn: "1d"
-        });
-        const options = {
-          expires: new Date(Date.now() + 1*24*60*60*1000),
-          httpOnly: true,
-        };
-        return res
-          .status(200)
-          .cookie("token",token,options)
-          .json({success:true})
+          httpOnly: true
         }
-    }else{
-      return res.status(401).json({
-        message: "Email/Password is Invalid!",
-      });
-    }
+
+        return res.status(200).cookie("token",token,options).json({success:true})
+
+      }else{
+        return res.status(401).json({
+          message: "Email/Password is Invalid!"
+        })
+      }
+      
+    })
   }catch(err){
+    console.log(err);
     res.status(500).send({
-      message: "Something Went Wrong!"
+      message: err.message
     })
   }
-});
+})
 
 // Update Password
 router.post("/update-password", checkAuth, async (req, res) => {
@@ -790,7 +792,7 @@ router.post("/logout", checkAuth, async (req, res) => {
   if (currentUser.type == "Influencer") {
     await Influencers.updateOne(
       { uid: currentUser.uid },
-      { $set: { lastOnline: new Date().getTime() - 300000 } }
+      { $set: { lastOnline: new Date().getTime() - 300000,TwoFA:false } }
     );
   } else {
     await Brand.updateOne(
@@ -798,7 +800,7 @@ router.post("/logout", checkAuth, async (req, res) => {
       { $set: { lastOnline: new Date().getTime() - 300000 } }
     );
   }
-  return res.status(200).clearCookie("token").json({ success: true });
+  return res.status(200).clearCookie("token").json({ success: true,TwoFA:false });
 });
 
 // Delete Account //
