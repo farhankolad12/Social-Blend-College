@@ -1,8 +1,11 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef,useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Loading from "../components/Loading";
 import { useAuth } from "../context/AuthContext";
 import { usePostReq } from "../hooks/usePostReq";
+import Login_onetap from "../components/google-auth/google-ontap";
+import { GoogleOAuthProvider } from "@react-oauth/google";
+import ReCAPTCHA from "react-google-recaptcha";
 
 export default function Login() {
   const { loading, error, execute, setError } = usePostReq("auth/login");
@@ -10,29 +13,43 @@ export default function Login() {
   const emailRef = useRef();
   const passRef = useRef();
   const navigate = useNavigate();
+  const recaptcha_ref = useRef();
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     const email = emailRef.current.value;
     const pass = passRef.current.value;
-    try {
-      await execute({ email, password: pass });
+    const token = await recaptcha_ref.current.executeAsync();
+
+    try{
+      const response = await execute({ email,password:pass,token })
       await authStateChange();
-    } catch (err) {
-      setError(err.response.data.message);
-      return setTimeout(() => setError(""), 2000);
+    }catch(err){
+      setError(err.response.data.message)
+      setTimeout(()=> setError(""),2000);
     }
   }
-
   useEffect(() => {
-    currentUser &&
+    if (currentUser && currentUser.TwoFA){
+      setIsFormSubmitted(false)
+      navigate("/2fa");
+    }else{
+      setIsFormSubmitted(true)
+      currentUser && !currentUser.TwoFA &&
       ((currentUser.type === "Influencer" && currentUser.currentLevel === 11) ||
       (currentUser.type === "Brand" && currentUser.currentLevel === 6)
         ? navigate(`/${currentUser.username}`)
         : currentUser.type === "Influencer"
         ? navigate(`/create-page/${currentUser.currentLevel}`)
-        : navigate(`/complete-profile/${currentUser.currentLevel}`));
-  }, [currentUser, navigate]);
+        : navigate(`/complete-profile/${currentUser.currentLevel}`))
+
+      window.history.pushState(null, document.title, window.location.href);
+      window.addEventListener("popstate", function () {
+        window.history.pushState(null, document.title, window.location.href);
+      });
+    }
+  },[currentUser,isFormSubmitted, navigate]);
 
   return (
     <>
@@ -54,10 +71,9 @@ export default function Login() {
       >
         <div className="d-flex flex-column align-items-center gap-3 justify-content-center ">
           <h1>Welcome Back</h1>
-          <button className="btn btn-dark d-flex gap-2 align-items-center w-100 justify-content-center">
-            <i className="bi bi-google" />
-            Continue with Google
-          </button>
+          <GoogleOAuthProvider clientId="817711081919-0g171iqdflb2mpkhfhpvmnmbglarng97.apps.googleusercontent.com">
+            <Login_onetap />
+          </GoogleOAuthProvider>
         </div>
         <div className="separator">
           <span>or</span>
@@ -80,6 +96,13 @@ export default function Login() {
             placeholder="Password"
             ref={passRef}
           />
+          
+          <ReCAPTCHA
+            ref = {recaptcha_ref}
+            size="invisible"
+            sitekey= "6Ld24oAmAAAAAA2pHR2xZvxKCmFluH4N-S6djIR6"
+          />
+          
           <button
             disabled={loading}
             type="submit"

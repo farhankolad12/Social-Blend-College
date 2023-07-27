@@ -1,0 +1,56 @@
+version: "3"
+services:
+  client:
+    container_name: social-frontend
+    image: index.docker.io/prashrex/social-frontend
+    restart: always
+    build: 
+      context: ./client/
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    
+    networks:
+      - node-webapp-network
+
+  server:
+    container_name: social-backend
+    image: index.docker.io/prashrex/social-backend
+    restart: always
+    build:
+      context: ./server/
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    networks:
+      - node-webapp-network
+    environment:
+      - MONGO_DB_HOST_NAME=mongodb://mongodb:27017/socialblend
+
+    
+  recaptcha_server:
+    container_name: recaptchaServer
+    image: index.io/prashrex/recaptcha_server
+    build: 
+      context: ./recaptchaServer
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    networks:
+      - node-webapp-network
+      
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:6.0
+    volumes:
+      - ~/mongo:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - node-webapp-network
+
+
+networks:
+  node-webapp-network:
+    driver: bridge

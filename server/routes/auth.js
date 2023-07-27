@@ -33,14 +33,179 @@ router.use(
     credentials: true,
   })
 );
+
+
+
+
 router.use(cookieParser());
 router.use(express.static(__dirname + "../public"));
 
 // Middlewares
 const checkAuth = require("../middleware/checkAuth");
 const { upload } = require("../middleware/upload");
+const { OAuth2Client, UserRefreshClient } = require("google-auth-library");
 
 /* All Routes for auth */
+
+/* ----------------------------------------------------------------------------- */
+// router for google-authentication
+/* this is for access_token */
+// google-oauth-client
+const CLIENT_ID =
+  "817711081919-0g171iqdflb2mpkhfhpvmnmbglarng97.apps.googleusercontent.com";
+const CLIENT_SECRET = "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";
+// initialize oauth client
+const oAuth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, "postmessage");
+
+function base64UrlDecode(str) {
+  // Convert base64 URL-safe encoded string to base64 encoded string
+  const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+
+  // Pad the base64 encoded string if necessary
+  const paddingLength = 4 - (base64.length % 4);
+  const paddedBase64 = base64 + "===".slice(0, paddingLength);
+
+  // Decode the base64 encoded string
+  const decoded = Buffer.from(paddedBase64, "base64").toString("utf-8");
+
+  return decoded;
+}
+
+function decodeJWT(token) {
+  const parts = token.split(".");
+  const header = JSON.parse(base64UrlDecode(parts[0]));
+  const payload = JSON.parse(base64UrlDecode(parts[1]));
+
+  return {
+    payload,
+  };
+}
+
+
+
+router.post("/google", async (req, res) => {
+  try {
+    const { name,email, username, currentLevel, type,sub,isVerified,brandName } = req.body;
+    
+    const about = "Google";
+    const hashPassword = await bcrypt.hash(sub, 10);
+    const alreadyExists = await Users.findOne({ email });
+
+    if (alreadyExists != null) {
+      return res.status(409).json({ message: "Email Already exist" });
+    }
+
+    const OTP = generateOTP();
+    const emailRes = await sendOTP({ OTP, to: email });
+
+    if (emailRes.rejected.length != 0)
+      return res.status(500).json({
+        message: "Something went wrong! Try again",
+      });
+
+    //try for refresh token ... not tested yet there are some complication
+    // so as for now password ---> sub --> which is an uuid of an email (which will be unique)
+    const user = new Users({
+      fullName: name,
+      username: username,
+      email: email,
+      password: hashPassword,
+      type: type,
+      about: about,
+      currentLevel: currentLevel,
+      isVerified: isVerified,
+      otp: OTP,
+      brandName: type == "Influencer" ? undefined : brandName,
+    });
+
+    await user.save();
+
+    user.password = undefined;
+    user.otp = undefined;
+
+    const token = jwt.sign({ user }, process.env.JWT_SECRECT_KEY, {
+      expiresIn: "1d",
+    });
+
+    const options = {
+      expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+      path: "/",
+    };
+
+    res.status(200).cookie("token", token, options).json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.sendStatus(500).json({
+      error,
+      message: "Something went wrong!",
+    });
+  }
+});
+
+// google-auth login
+
+router.post("/google-ontap", async (req, res) => {
+  const { email, password } = req.body;
+  const isEmailExists = await Users.findOne({ email });
+  if (
+    isEmailExists &&
+    (await bcrypt.compare(password, isEmailExists.password))
+  ) {
+    isEmailExists.type == "Influencer"
+      ? await Influencers.updateOne(
+          {
+            uid: isEmailExists._id,
+          },
+          { $set: { lastOnline: new Date().getTime() } }
+        )
+      : await Brand.updateOne(
+          { uid: isEmailExists._id },
+          { $set: { lastOnline: new Date().getTime() } }
+        );
+
+    const userData =
+      isEmailExists.type == "Influencer"
+        ? await Influencers.findOne({
+            uid: isEmailExists._id,
+          })
+        : await Brand.findOne({ uid: isEmailExists._id });
+    isEmailExists.password = undefined;
+    isEmailExists.otp = undefined;
+    const token = jwt.sign(
+      { user: userData === null ? isEmailExists : userData },
+      process.env.JWT_SECRECT_KEY,
+      {
+        expiresIn: "1d",
+      }
+    );
+    const options = {
+      expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+      path: "/",
+    };
+
+    return res
+      .status(200)
+      .cookie("token", token, options)
+      .json({ success: true });
+  } else {
+    return res.status(401).json({
+      message: "Invalid Credential",
+    });
+  }
+});
+
+/* this is for refresh_token */
+router.post("/auth/google/refresh-token", async (req, res) => {
+  const user = new UserRefreshClient(
+    CLIENT_ID,
+    CLIENT_SECRET,
+    req.body.refreshToken
+  );
+  const { credentials } = await user.refreshAccessToken();
+  res.json(credentials);
+});
+
+/* ---------------------------------------------------------------- */
 
 // Check Username
 router.post("/check-username", async (req, res) => {
@@ -108,6 +273,7 @@ router.post("/signup", async (req, res) => {
       currentLevel,
       isVerified: false,
       otp: OTP,
+      
       brandName: type == "Influencer" ? undefined : brandName,
     });
 
@@ -122,7 +288,7 @@ router.post("/signup", async (req, res) => {
 
     const options = {
       expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-      httpOnly: true,
+      path: "/",
     };
 
     res.status(200).cookie("token", token, options).json({ success: true });
@@ -153,6 +319,9 @@ router.post("/resend-email", checkAuth, async (req, res) => {
     });
   }
 });
+
+
+
 
 router.get("/check-auth", checkAuth, (req, res) => {
   const currentUser = req.user;
@@ -198,6 +367,7 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
               fullName: emailExists.fullName,
               type: emailExists.type,
               isVerified: true,
+              TwoFA:false,
               lastOnline: new Date().getTime(),
             })
           : await Brand.create({
@@ -218,25 +388,10 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
               fullName: emailExists.fullName,
               type: emailExists.type,
               isVerified: true,
+              TwoFA:false,
               brandName: emailExists.brandName,
               lastOnline: new Date().getTime(),
             });
-
-      /*       const customer =
-        emailExists.type === "Brand" &&
-        (await stripe.customers.create({
-          email: currentUser.email,
-        }));
-
-      const setupIntent =
-        emailExists.type === "Brand" &&
-        (await stripe.setupIntents.create({
-          customer: customer.id,
-          payment_method_types: ["card"],
-        }));
-
-      emailExists.type === "Brand" &&
-        (newUser.clientSecret = setupIntent.client_secret); */
 
       const token = jwt.sign({ user: newUser }, process.env.JWT_SECRECT_KEY, {
         expiresIn: "1d",
@@ -244,7 +399,7 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
 
       const options = {
         expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-        httpOnly: true,
+        path: "/",
       };
 
       return res.status(200).cookie("token", token, options).json({
@@ -268,6 +423,7 @@ router.post("/verify-otp", checkAuth, async (req, res) => {
 router.post("/add-data-influencer", checkAuth, async (req, res) => {
   const {
     currentLevel,
+    isVerified,
     about,
     location,
     heading,
@@ -281,6 +437,8 @@ router.post("/add-data-influencer", checkAuth, async (req, res) => {
   const { uid, email } = req.user;
 
   try {
+    
+
     await Users.updateOne(
       { _id: uid },
       { currentLevel: currentLevel === 11 ? 11 : currentLevel + 1 }
@@ -316,20 +474,21 @@ router.post("/add-data-influencer", checkAuth, async (req, res) => {
 
 // Add Brand Data In DB
 router.post("/add-data-brand", checkAuth, async (req, res) => {
-  const { currentLevel, location, heading, handles, niches } = req.body;
-  const { uid, email } = req.user;
+  const { currentLevel, location,brandName, heading, handles, niches } = req.body;
+  const { uid, email,currentUser } = req.user;
 
   try {
     await Users.updateOne(
       { _id: uid },
-      { currentLevel: currentLevel === 6 ? 6 : currentLevel + 1 }
+      { currentLevel: currentLevel === 7 ? 7 : currentLevel + 1 }
     );
     await Brand.updateOne(
       { uid },
       {
         $set: {
-          currentLevel: currentLevel === 6 ? 6 : currentLevel + 1,
+          currentLevel: currentLevel === 7 ? 7 : currentLevel + 1,
           location,
+          brandName,
           heading,
           handles,
           niches,
@@ -342,7 +501,7 @@ router.post("/add-data-brand", checkAuth, async (req, res) => {
     });
   } catch (err) {
     console.log(err);
-    return res.status(500).js4on({
+    return res.status(500).json({
       err,
       message: "Something went wrong!",
     });
@@ -424,58 +583,181 @@ router.post("/add-imgs", checkAuth, upload.any(), async (req, res) => {
   }
 });
 
-// Login
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const isEmailExists = await Users.findOne({ email });
-    if (
-      isEmailExists &&
-      (await bcrypt.compare(password, isEmailExists.password))
-    ) {
-      isEmailExists.type == "Influencer"
-        ? await Influencers.updateOne(
-            {
-              uid: isEmailExists._id,
-            },
-            { $set: { lastOnline: new Date().getTime() } }
-          )
-        : await Brand.updateOne(
-            { uid: isEmailExists._id },
-            { $set: { lastOnline: new Date().getTime() } }
-          );
-      const userData =
-        isEmailExists.type == "Influencer"
-          ? await Influencers.findOne({
-              uid: isEmailExists._id,
-            })
-          : await Brand.findOne({ uid: isEmailExists._id });
-      const token = jwt.sign(
-        { user: userData !== null ? userData : isEmailExists },
-        process.env.JWT_SECRECT_KEY,
+// two-step-verification
+router.post("/twoFA",checkAuth,async (req,res) => {
+  const { email } = req.user;
+  const { code } = req.body;
+  try{
+    const emailExists = await Users.findOne({ email })
+    const ten_min = 30 * 60 * 1000;
+    if (new Date().getTime() - emailExists.lastOnline > ten_min){
+      emailExists.type == "Influencer"
+      ? await Influencers.updateOne(
+        { uid: emailExists._id},
         {
-          expiresIn: "1d",
+          $set:{
+            TwoFA: false,
+            lastOnline: new Date().getTime()
+          }
         }
-      );
-      const options = {
-        expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-        httpOnly: true,
-      };
-      return res
-        .status(200)
-        .cookie("token", token, options)
-        .json({ success: true });
+      )
+      : await Brand.updateOne(
+        { uid: emailExists._id},
+        {
+          $set:{
+            TwoFA: false,
+            lastOnline: new Date().getTime()
+          }
+        }
+      )
+      return res.status(200).clearCookie("token").json({ success: true });
     }
-    return res.status(401).json({
-      message: "Email/Password is Invalid!",
-    });
-  } catch (err) {
-    return res.status(500).json({
-      err,
-      message: "Something went wrong!",
-    });
+
+    if ( emailExists != null && code == emailExists.otp ){ 
+        emailExists.type == "Influencer"
+        ? await Influencers.updateOne(
+          { uid: emailExists._id },
+          {
+            $set:{
+              TwoFA: false,
+              lastOnline: new Date().getTime()
+            }
+          }
+        )
+        : await Brand.updateOne(
+          { uid: emailExists._id},
+          {
+            $set:{
+              TwoFA: false,
+              lastOnline: new Date().getTime()
+            }
+          }
+        )
+        const userData = 
+        emailExists.type == "Influencer"
+        ? await Influencers.findOne(
+          {uid: emailExists._id}
+        )
+        : await Brand.findOne(
+          { uid: emailExists._id }
+        )
+        const token = jwt.sign({user: userData !== null ? userData: emailExists},process.env.JWT_SECRECT_KEY,{expiresIn: "1d"});
+        const options = {
+          expires: new Date(Date.now() + 1*24*60*60*1000),
+          httpOnly: true,
+        };
+        return res.status(200).cookie("token",token,options).json({
+          success:true
+        })
+      }
+    else{
+      return res.status(401).json({
+        success: false,
+        message: "Invalid OTP try again!"
+      })
+    }
+
+    
+
+  }catch(err){
+    res.status(500).send({
+      message: "Something Went Wrong!"
+    })
   }
 });
+
+
+//LOGIN
+const axios = require('axios');
+
+router.post("/login",async (req,res) => {
+  const { email,password,token } = req.body;
+  const SECRET_KEY = process.env.RECAPTCHA_CLIENT_SECRET_KEY;
+  try{
+    const isEmailExists = await Users.findOne({ email });
+    await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${SECRET_KEY}&response=${token}`,
+      {
+        headers:{
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" 
+        }
+      }
+    )
+    .then(async function(response){
+      const success = response.data.success;
+      const score = response.data.score;
+      if (isEmailExists && await bcrypt.compare(password,isEmailExists.password)){
+        if (success && score > 0.5){
+          isEmailExists.type == "Influencer"
+          ? await Influencers.updateOne(
+            {
+              uid: isEmailExists._id
+            },
+            {
+              $set: {lastOnline: new Date().getTime()}
+            }
+          )
+          : await Brand.updateOne(
+            {
+              uid: isEmailExists._id
+            },
+            {
+              $set: {lastOnline: new Date().getTime()}
+            }
+          )
+        }
+        else{
+          const OTP = generateOTP();
+          await sendOTP({OTP,to:email});
+
+          isEmailExists.type == "Influencer"
+          ? await Influencers.updateOne(
+            {uid: isEmailExists._id},
+            {$set: {TwoFA: true,lastOnline: new Date().getTime()}}
+          )
+          : await Brand.updateOne(
+            {uid: isEmailExists._id},
+            {$set: {TwoFA:true,lastOnline: new Date().getTime()}} 
+          )
+          await Users.updateOne({email},{otp:OTP})
+        }
+        const userData = 
+          isEmailExists.type == "Influencer"
+            ? await Influencers.findOne(
+              { uid: isEmailExists._id}
+            )
+            : await Brand.findOne(
+              { uid: isEmailExists._id}
+            ) 
+
+        const token = jwt.sign({
+          user: userData !== null ? userData: isEmailExists
+        }, process.env.JWT_SECRECT_KEY,{
+          expiresIn: "1d"
+        });
+
+        const options = {
+          expires: new Date(Date.now() + 1*24*60*60*1000),
+          httpOnly: true
+        }
+
+        return res.status(200).cookie("token",token,options).json({success:true})
+
+      }else{
+        return res.status(401).json({
+          message: "Email/Password is Invalid!"
+        })
+      }
+      
+    })
+  }catch(err){
+    console.log(err);
+    res.status(500).send({
+      message: err.message
+    })
+  }
+})
 
 // Update Password
 router.post("/update-password", checkAuth, async (req, res) => {
@@ -510,7 +792,7 @@ router.post("/logout", checkAuth, async (req, res) => {
   if (currentUser.type == "Influencer") {
     await Influencers.updateOne(
       { uid: currentUser.uid },
-      { $set: { lastOnline: new Date().getTime() - 300000 } }
+      { $set: { lastOnline: new Date().getTime() - 300000,TwoFA:false } }
     );
   } else {
     await Brand.updateOne(
@@ -518,7 +800,7 @@ router.post("/logout", checkAuth, async (req, res) => {
       { $set: { lastOnline: new Date().getTime() - 300000 } }
     );
   }
-  return res.status(200).clearCookie("token").json({ success: true });
+  return res.status(200).clearCookie("token").json({ success: true,TwoFA:false });
 });
 
 // Delete Account //

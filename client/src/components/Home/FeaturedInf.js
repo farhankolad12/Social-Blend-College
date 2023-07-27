@@ -2,11 +2,9 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useGetReq } from "../../hooks/useGetReq";
 import ErrorCon from "../ErrorCon";
-import Loading from "../Loading";
-import Influencer from "./Influencer";
 
 export default function FeaturedInf() {
-  const { error, loading, userData } = useGetReq(
+  const { error} = useGetReq(
     "influencers/get-featured-users",
     {}
   );
@@ -29,13 +27,13 @@ export default function FeaturedInf() {
           <Link to="/influencers/any/all">See All</Link>
         </div>
         <div className="influencers-con">
-          {loading ? (
+          {/* {loading ? (
             <Loading />
           ) : (
             userData.map((user) => {
               return <Influencer user={user} key={user.uid} />;
             })
-          )}
+          )} */}
         </div>
       </div>
     </>

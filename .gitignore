@@ -1,0 +1,11 @@
+versys.pub
+versys
+/data
+
+/node_modules
+.env
+
+
+azure-pipelines.yml
+n.yml
+s.yml

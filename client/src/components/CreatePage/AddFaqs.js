@@ -40,6 +40,7 @@ export default function AddFaqs() {
   }, [submit]);
 
   useEffect(() => {
+    
     navigate(`/create-page/${currentLevel.toString()}`);
   }, [currentLevel, navigate]);
 
