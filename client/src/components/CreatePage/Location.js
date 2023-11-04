@@ -14,7 +14,6 @@ export default function Location() {
   const { addData, loading, error, setError } = useAddData(
     currentUser.type.toLowerCase()
   );
-  
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -26,8 +25,7 @@ export default function Location() {
       else{
         setCurrentLevel((prev) => prev + 2);
       } */
-      setCurrentLevel((prev) => prev + (currentUser.brandName === "" ? 1:2));
-      
+      setCurrentLevel((prev) => prev + (currentUser.brandName ? 2 : 1));
     } catch {
       return setTimeout(() => setError(""), 2000);
     }
@@ -40,6 +38,14 @@ export default function Location() {
       }/${currentLevel.toString()}`
     );
   }, [currentLevel, navigate]);
+
+  useEffect(() => {
+    if (location.length >= 3) {
+      (async () => {
+        const res = await fetch("");
+      })();
+    }
+  }, [location]);
 
   return (
     <>
