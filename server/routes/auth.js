@@ -618,7 +618,17 @@ router.post("/twoFA", checkAuth, async (req, res) => {
               },
             }
           );
-      return res.status(200).clearCookie("token").json({ success: true });
+      const options = {
+        expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+      };
+
+      return res
+        .status(200)
+        .clearCookie("token", options)
+        .json({ success: true });
     }
 
     if (emailExists != null && code == emailExists.otp) {
@@ -811,9 +821,15 @@ router.post("/logout", checkAuth, async (req, res) => {
       { $set: { lastOnline: new Date().getTime() - 300000 } }
     );
   }
+  const options = {
+    expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+  };
   return res
     .status(200)
-    .clearCookie("token")
+    .clearCookie("token", options)
     .json({ success: true, TwoFA: false });
 });
 
