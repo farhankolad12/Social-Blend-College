@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const checkAuth = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.status(401).json({ message: "Please Login" });
+  console.log(token);
   try {
     const decode = jwt.verify(token, process.env.JWT_SECRECT_KEY);
     const { user } = decode;

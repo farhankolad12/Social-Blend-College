@@ -38,6 +38,7 @@ export default function DesktopNav() {
               </Link>
               {currentUser.type === "Brand" && (
                 <div className="links-list d-flex justify-content-center gap-5 align-items-center">
+                  <Link to="/dashboard">Dashboard</Link>
                   <Link to="/influencers/any/all">Explore</Link>
                   <Link to="/lists">List</Link>
                 </div>
@@ -88,11 +89,18 @@ export default function DesktopNav() {
                   </Link>
                 </li>
                 {currentUser.type === "Brand" ? (
-                  <li className="mt-2">
-                    <Link className="dropdown-item" to="/billing">
-                      Billing
-                    </Link>
-                  </li>
+                  <>
+                    <li className="mt-2">
+                      <Link className="dropdown-item" to="/billing">
+                        Billing
+                      </Link>
+                    </li>
+                    <li className="mt-2">
+                      <Link className="dropdown-item" to="/dashboard">
+                        Dashboard
+                      </Link>
+                    </li>
+                  </>
                 ) : (
                   <li className="mt-2">
                     <Link className="dropdown-item" to="/earnings">

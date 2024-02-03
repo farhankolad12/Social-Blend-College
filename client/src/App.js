@@ -29,6 +29,7 @@ import Orders from "./pages/Orders";
 import InfluencerRoutes from "./components/PrivateRoutes/InfluencerRoutes";
 import BrandRoutes from "./components/PrivateRoutes/BrandRoutes";
 import TwoStepVerfication from "./components/CreatePage/two-step";
+import Dashboard from "./pages/Dashboard";
 
 function App() {
   const resolvedPath = useResolvedPath("/create-page");
@@ -36,7 +37,7 @@ function App() {
 
   const resolvedPath1 = useResolvedPath("/login");
   const isLoginPage = useMatch({ path: resolvedPath1.pathname, end: false });
-  
+
   const resolvedPath2 = useResolvedPath("/orders");
   const isOrderPage = useMatch({ path: resolvedPath2.pathname, end: false });
 
@@ -115,11 +116,14 @@ function App() {
             </SignUpContext>
           }
         />
-        <Route path="/2fa/" element={
-          <SignUpContext >
-            <TwoStepVerfication/> 
-          </SignUpContext>
-        }/>
+        <Route
+          path="/2fa/"
+          element={
+            <SignUpContext>
+              <TwoStepVerfication />
+            </SignUpContext>
+          }
+        />
         <Route path="/forget-password" element={<ForgetPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/:username" element={<UserPage />} />
@@ -155,6 +159,10 @@ function App() {
         <Route
           path="/earnings"
           element={<InfluencerRoutes component={<Earnings />} />}
+        />
+        <Route
+          path="/dashboard"
+          element={<BrandRoutes component={<Dashboard />} />}
         />
       </Routes>
       {isCreatePage ||

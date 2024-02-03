@@ -34,7 +34,7 @@ export default function PlatformInf({ platform }) {
           {loading ? (
             <Loading />
           ) : (
-            userData.map((user, i) => {
+            userData?.map((user, i) => {
               return i <= 3 && <Influencer user={user} key={i} />;
             })
           )}
